@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Bloom",
+    "slug": "bloom-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#FFFAF0",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bloom.reproductivehealth"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFC0CB"
+      },
+      "package": "com.bloom.reproductivehealth"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-status-bar"
+    ]
+  }
+}
