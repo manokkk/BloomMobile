@@ -6,8 +6,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { loginUser, signUpUser } from '../services/api';
 import { BloomKeyboardScreen } from './BloomKeyboardScreen';
+import { BloomRoseSvg } from './BloomRoseSvg';
 import { BloomTextInput } from './BloomTextInput';
 
 interface WelcomeLoginScreenProps {
@@ -80,14 +82,7 @@ export const WelcomeLoginScreen: React.FC<WelcomeLoginScreenProps> = ({
     <BloomKeyboardScreen contentContainerStyle={styles.scrollContent}>
       {/* Rose Emblem Header */}
       <View style={styles.emblemWrapper}>
-        <View style={styles.emblemHalo}>
-          <View style={styles.emblemInner}>
-            <View style={styles.miniPetalTop} />
-            <View style={styles.miniPetalLeft} />
-            <View style={styles.miniPetalRight} />
-            <View style={styles.miniPetalCore} />
-          </View>
-        </View>
+        <BloomRoseSvg size={88} />
         <Text style={styles.brandTitle}>Bloom</Text>
         <Text style={styles.tagline}>
           Your private, cycle-aware wellness companion
@@ -167,8 +162,14 @@ export const WelcomeLoginScreen: React.FC<WelcomeLoginScreenProps> = ({
           <Text style={styles.inputLabel}>Password</Text>
           <TouchableOpacity
             onPress={() => setShowPassword((prev) => !prev)}
+            style={styles.toggleRow}
             activeOpacity={0.7}
           >
+            <Ionicons
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={15}
+              color="#D23669"
+            />
             <Text style={styles.togglePasswordText}>
               {showPassword ? 'Hide' : 'Show'}
             </Text>
@@ -231,9 +232,12 @@ export const WelcomeLoginScreen: React.FC<WelcomeLoginScreenProps> = ({
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.privacyFooter}>
-        Protected with scrypt password hashing & JWT encryption
-      </Text>
+      <View style={styles.footerRow}>
+        <Ionicons name="shield-checkmark-outline" size={14} color="#8C8296" />
+        <Text style={styles.privacyFooter}>
+          Protected with scrypt password hashing & JWT encryption
+        </Text>
+      </View>
     </BloomKeyboardScreen>
   );
 };
@@ -387,11 +391,16 @@ const styles = StyleSheet.create({
     color: '#2D2A32',
     marginBottom: 8,
   },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 8,
+  },
   togglePasswordText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#D23669',
-    marginBottom: 8,
   },
   fieldSpacing: {
     marginBottom: 16,
@@ -412,8 +421,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  privacyFooter: {
+  footerRow: {
     marginTop: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  privacyFooter: {
     fontSize: 12,
     color: '#8C8296',
     textAlign: 'center',

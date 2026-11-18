@@ -6,10 +6,16 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import { BloomKeyboardScreen } from './BloomKeyboardScreen';
 import { BloomTextInput } from './BloomTextInput';
+import { BottomNavBar, MainTab } from './BottomNavBar';
+import { CycleCalendarTab } from './CycleCalendarTab';
+import { SettingsTab } from './SettingsTab';
 import {
   fetchUserCycle,
+  logNewCycleStart,
   upsertDailySymptomLog,
   clearAuthSession,
   CycleDataResponse,
@@ -36,6 +42,29 @@ const MOOD_OPTIONS = [
   'Affectionate',
   'Reflective',
 ];
+
+const PHASE_THEMES: Record<
+  'Menstrual' | 'Follicular' | 'Ovulation' | 'Luteal',
+  { accent: string; softBg: string; border: string }
+> = {
+  Menstrual: { accent: '#E11D48', softBg: '#FFE4E6', border: '#FDA4AF' },
+  Follicular: { accent: '#D23669', softBg: '#FCE7F3', border: '#F9A8D4' },
+  Ovulation: { accent: '#9333EA', softBg: '#F3E8FF', border: '#D8B4FE' },
+  Luteal: { accent: '#D97706', softBg: '#FEF3C7', border: '#FCD34D' },
+};
+
+const SHORT_MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+function formatShortDate(iso?: string | null): string {
+  if (!iso) return '—';
+  const parts = iso.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return iso;
+  const [, month, day] = parts;
+  return `${SHORT_MONTHS[month - 1] ?? ''} ${day}`;
+}
 
 function getTodayIso(): string {
   return new Date().toISOString().split('T')[0];
@@ -65,12 +94,14 @@ interface DashboardProps {
   initialUser?: { id: string; email?: string };
   onReady?: () => void;
   onLogout?: () => void;
+  onOpenPinSetup?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
   initialUser,
   onReady,
   onLogout,
+  onOpenPinSetup,
 }) => {
   const [userId, setUserId] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
@@ -83,8 +114,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [notes, setNotes] = useState<string>('');
 
+  const [activeTab, setActiveTab] = useState<MainTab>('dashboard');
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [loggingCycle, setLoggingCycle] = useState<boolean>(false);
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
 
@@ -227,6 +260,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
+  const handleLogPeriodStart = async () => {
+    if (!userId) return;
+    setLoggingCycle(true);
+    setStatusBanner(null);
+    setErrorBanner(null);
+
+    try {
+      await logNewCycleStart({
+        user_id: userId,
+        start_date: selectedDate,
+      });
+      const refreshed = await fetchUserCycle(userId);
+      setCycleData(refreshed);
+      setStatusBanner(`New cycle started on ${formatShortDate(selectedDate)}.`);
+    } catch (err: any) {
+      setErrorBanner(
+        err?.response?.data?.error || err.message || 'Failed to log period start.'
+      );
+    } finally {
+      setLoggingCycle(false);
+    }
+  };
+
   if (loading) {
     return (
       <View
@@ -240,192 +296,187 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const prediction = cycleData?.prediction;
   const calendarDays = generateCalendarStrip(selectedDate);
+  const phaseTheme =
+    PHASE_THEMES[prediction?.current_phase ?? 'Follicular'] ??
+    PHASE_THEMES.Follicular;
+  const cycleDay = prediction?.current_cycle_day ?? 1;
+  const cycleProgressPct = Math.min(100, Math.max(4, Math.round((cycleDay / 28) * 100)));
 
   return (
-    <BloomKeyboardScreen
-      style={styles.screenBg}
-      contentContainerStyle={styles.scrollContent}
-    >
-      {/* Top Privacy & Brand Header */}
-      <View className="flex-row items-center justify-between mb-6">
-        <View>
-          <Text className="text-3xl font-bold text-magentaBloom" style={styles.brandTitle}>
-            Bloom
-          </Text>
-          <Text className="text-xs text-deepCharcoal opacity-75" style={styles.subtleText}>
-            Privacy-First Reproductive Health • {userEmail || 'Protected Session'}
-          </Text>
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+    <View style={{ flex: 1, backgroundColor: '#FFFAF0' }}>
+      <BloomKeyboardScreen
+        style={styles.screenBg}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {errorBanner && (
           <View
-            className="px-3 py-1.5 rounded-3xl bg-softRose border border-magentaBloom"
-            style={styles.privacyBadge}
+            className="mb-4 p-4 rounded-3xl border border-magentaBloom bg-petalLight"
+            style={styles.alertBanner}
           >
-            <Text className="text-xs font-semibold text-magentaBloom" style={styles.magentaText}>
-              🔒 End-to-End API
+            <Text className="text-xs font-medium text-magentaBloom" style={styles.magentaText}>
+              {errorBanner}
             </Text>
           </View>
-          {onLogout && (
-            <TouchableOpacity
-              onPress={async () => {
-                await clearAuthSession();
-                onLogout();
-              }}
-              style={styles.signOutPill}
-              activeOpacity={0.75}
-            >
-              <Text style={styles.signOutText}>Sign Out</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+        )}
 
-      {errorBanner && (
-        <View
-          className="mb-4 p-4 rounded-3xl border border-magentaBloom bg-petalLight"
-          style={styles.alertBanner}
-        >
-          <Text className="text-xs font-medium text-magentaBloom" style={styles.magentaText}>
-            {errorBanner}
-          </Text>
-        </View>
-      )}
-
-      {/* Horizontal Floral Calendar Strip */}
-      <View
-        className="mb-6 p-4 rounded-3xl bg-white shadow-sm"
-        style={styles.cardContainer}
-      >
-        <View className="flex-row justify-between items-center mb-3">
-          <Text className="text-sm font-bold text-deepCharcoal" style={styles.sectionTitle}>
-            Cycle Calendar
-          </Text>
-          <Text className="text-xs font-semibold text-magentaBloom" style={styles.magentaText}>
-            Selected: {selectedDate}
-          </Text>
-        </View>
-
-        <View className="flex-row justify-between">
-          {calendarDays.map((day) => {
-            const isSelected = day.iso === selectedDate;
-            return (
+        {activeTab === 'dashboard' && (
+          <>
+            {/* Top Brand Header */}
+            <View style={styles.headerRow}>
+              <View style={styles.headerLeft}>
+                <Text className="text-3xl font-bold text-magentaBloom" style={styles.brandTitle}>
+                  Bloom
+                </Text>
+                <Text className="text-xs text-deepCharcoal opacity-75" style={styles.subtleText}>
+                  {userEmail || 'Protected Session'}
+                </Text>
+              </View>
               <TouchableOpacity
-                key={day.iso}
-                onPress={() => handleSelectDate(day.iso)}
-                className={`items-center justify-center px-3 py-3 rounded-3xl ${isSelected ? 'bg-softRose border border-magentaBloom' : 'bg-floralWhite'
-                  }`}
-                style={[
-                  styles.calendarDayPill,
-                  isSelected && styles.calendarDayPillActive,
-                ]}
+                onPress={() => setActiveTab('checkin')}
+                style={styles.quickCheckInPill}
+                activeOpacity={0.8}
               >
-                <Text
-                  className="text-xs font-medium text-deepCharcoal mb-1"
-                  style={[
-                    styles.calendarDayLabel,
-                    isSelected && styles.magentaText,
-                  ]}
-                >
-                  {day.dayName}
-                </Text>
-                <Text
-                  className="text-base font-bold text-deepCharcoal"
-                  style={[
-                    styles.calendarDayNumber,
-                    isSelected && styles.magentaText,
-                  ]}
-                >
-                  {day.dayNumber}
-                </Text>
-                {day.isToday && (
-                  <View
-                    className="w-1.5 h-1.5 rounded-full bg-magentaBloom mt-1"
-                    style={styles.todayDot}
+                <Ionicons name="add-circle-outline" size={15} color="#D23669" />
+                <Text style={styles.quickCheckInText}>Log Today</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Circular SVG Cycle Ring Centerpiece */}
+            <View className="items-center justify-center my-2 mb-6" style={styles.ringSection}>
+              <View style={styles.svgRingWrapper}>
+                <Svg width={264} height={264} viewBox="0 0 264 264" style={styles.svgRing}>
+                  <Circle
+                    cx="132"
+                    cy="132"
+                    r="118"
+                    stroke={phaseTheme.softBg}
+                    strokeWidth="14"
+                    fill="#FFFAF0"
                   />
+                  <Circle
+                    cx="132"
+                    cy="132"
+                    r="118"
+                    stroke={phaseTheme.accent}
+                    strokeWidth="14"
+                    strokeLinecap="round"
+                    fill="none"
+                    strokeDasharray={2 * Math.PI * 118}
+                    strokeDashoffset={
+                      2 * Math.PI * 118 * (1 - cycleProgressPct / 100)
+                    }
+                    transform="rotate(-90 132 132)"
+                  />
+                </Svg>
+
+                <View style={styles.ringCenterContent}>
+                  <View
+                    style={[
+                      styles.phaseBadge,
+                      { backgroundColor: phaseTheme.softBg },
+                    ]}
+                  >
+                    <Text style={[styles.phasePillText, { color: phaseTheme.accent }]}>
+                      {prediction?.current_phase ?? 'Follicular'} Phase
+                    </Text>
+                  </View>
+                  <Text
+                    className="text-5xl font-extrabold text-deepCharcoal"
+                    style={styles.cycleDayHero}
+                  >
+                    Day {cycleDay}
+                  </Text>
+                  <Text
+                    className="text-sm font-semibold mt-1"
+                    style={[styles.countdownText, { color: phaseTheme.accent }]}
+                  >
+                    {prediction?.days_until_next_period ?? 16} days until next period
+                  </Text>
+                  <Text
+                    className="text-xs text-center text-deepCharcoal px-6 mt-2 opacity-80"
+                    style={styles.ringDescription}
+                  >
+                    {prediction?.phase_description}
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.logPeriodButton,
+                  { borderColor: phaseTheme.border },
+                  loggingCycle && { opacity: 0.7 },
+                ]}
+                onPress={handleLogPeriodStart}
+                disabled={loggingCycle}
+                activeOpacity={0.8}
+              >
+                {loggingCycle ? (
+                  <ActivityIndicator size="small" color="#D23669" />
+                ) : (
+                  <View style={styles.inlineIconRow}>
+                    <Ionicons name="water-outline" size={16} color="#D23669" />
+                    <Text style={styles.logPeriodButtonText}>
+                      Log Period Start ({formatShortDate(selectedDate)})
+                    </Text>
+                  </View>
                 )}
               </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
+            </View>
 
-      {/* Circular Cycle Ring Centerpiece */}
-      <View className="items-center justify-center my-2 mb-6">
-        <View
-          className="items-center justify-center rounded-full bg-softRose shadow-md"
-          style={styles.outerFloralRing}
-        >
+            {/* Cycle Key Dates Summary Cards */}
+            <View className="flex-row justify-between mb-6" style={styles.metricsRow}>
+              <View
+                className="flex-1 p-4 rounded-3xl bg-white shadow-sm mr-2"
+                style={[styles.cardContainer, styles.metricCard]}
+              >
+                <Text className="text-xs text-deepCharcoal opacity-70" style={styles.subtleText}>
+                  Cycle Started
+                </Text>
+                <Text className="text-base font-bold text-deepCharcoal mt-1" style={styles.charcoalText}>
+                  {formatShortDate(cycleData?.cycle.start_date)}
+                </Text>
+                <Text className="text-xs text-magentaBloom mt-1" style={styles.magentaText}>
+                  Fertile: {formatShortDate(prediction?.fertile_window_start)} –{' '}
+                  {formatShortDate(prediction?.fertile_window_end)}
+                </Text>
+              </View>
+
+              <View
+                className="flex-1 p-4 rounded-3xl bg-white shadow-sm ml-2"
+                style={[styles.cardContainer, styles.metricCard]}
+              >
+                <Text className="text-xs text-deepCharcoal opacity-70" style={styles.subtleText}>
+                  Expected Next Period
+                </Text>
+                <Text className="text-base font-bold text-magentaBloom mt-1" style={styles.magentaText}>
+                  {formatShortDate(cycleData?.cycle.expected_next_start)}
+                </Text>
+                <Text className="text-xs text-deepCharcoal mt-1" style={styles.subtleText}>
+                  Est. Ovulation: {formatShortDate(prediction?.ovulation_date)}
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
+
+        {activeTab === 'cycle' && (
+          <CycleCalendarTab
+            selectedDate={selectedDate}
+            onSelectDate={handleSelectDate}
+            cycleData={cycleData}
+            onOpenCheckIn={() => setActiveTab('checkin')}
+            onLogPeriodStart={handleLogPeriodStart}
+            loggingCycle={loggingCycle}
+          />
+        )}
+
+        {activeTab === 'checkin' && (
+          /* Daily Symptom & Mood Logging Form */
           <View
-            className="items-center justify-center rounded-full bg-floralWhite"
-            style={styles.innerFloralRing}
+            className="p-5 rounded-3xl bg-white shadow-md mb-8"
+            style={styles.cardContainer}
           >
-            <Text
-              className="text-xs uppercase tracking-widest font-bold text-magentaBloom mb-1"
-              style={styles.phasePillText}
-            >
-              {prediction?.current_phase} Phase
-            </Text>
-            <Text
-              className="text-5xl font-extrabold text-deepCharcoal"
-              style={styles.cycleDayHero}
-            >
-              Day {prediction?.current_cycle_day ?? 1}
-            </Text>
-            <Text
-              className="text-sm font-semibold text-magentaBloom mt-1"
-              style={styles.magentaText}
-            >
-              {prediction?.days_until_next_period ?? 16} days until next period
-            </Text>
-            <Text
-              className="text-xs text-center text-deepCharcoal px-6 mt-2 opacity-80"
-              style={styles.ringDescription}
-            >
-              {prediction?.phase_description}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Cycle Key Dates Summary Cards */}
-      <View className="flex-row justify-between mb-6" style={styles.metricsRow}>
-        <View
-          className="flex-1 p-4 rounded-3xl bg-white shadow-sm mr-2"
-          style={[styles.cardContainer, styles.metricCard]}
-        >
-          <Text className="text-xs text-deepCharcoal opacity-70" style={styles.subtleText}>
-            Cycle Started
-          </Text>
-          <Text className="text-base font-bold text-deepCharcoal mt-1" style={styles.charcoalText}>
-            {cycleData?.cycle.start_date}
-          </Text>
-          <Text className="text-xs text-magentaBloom mt-1" style={styles.magentaText}>
-            Fertile: {prediction?.fertile_window_start?.slice(5)} to{' '}
-            {prediction?.fertile_window_end?.slice(5)}
-          </Text>
-        </View>
-
-        <View
-          className="flex-1 p-4 rounded-3xl bg-white shadow-sm ml-2"
-          style={[styles.cardContainer, styles.metricCard]}
-        >
-          <Text className="text-xs text-deepCharcoal opacity-70" style={styles.subtleText}>
-            Expected Next Period
-          </Text>
-          <Text className="text-base font-bold text-magentaBloom mt-1" style={styles.magentaText}>
-            {cycleData?.cycle.expected_next_start}
-          </Text>
-          <Text className="text-xs text-deepCharcoal mt-1" style={styles.subtleText}>
-            Est. Ovulation: {prediction?.ovulation_date?.slice(5)}
-          </Text>
-        </View>
-      </View>
-
-      {/* Daily Symptom & Mood Logging Form */}
-      <View
-        className="p-5 rounded-3xl bg-white shadow-md mb-8"
-        style={styles.cardContainer}
-      >
         <Text className="text-lg font-bold text-deepCharcoal mb-1" style={styles.sectionTitle}>
           Daily Body & Mood Check-In
         </Text>
@@ -529,10 +580,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {statusBanner && (
           <View
             className="mb-4 p-3 rounded-3xl bg-softRose border border-magentaBloom"
-            style={styles.statusBanner}
+            style={[styles.statusBanner, styles.inlineIconRow, { justifyContent: 'center' }]}
           >
+            <Ionicons name="checkmark-circle" size={16} color="#D23669" />
             <Text className="text-xs font-semibold text-magentaBloom text-center" style={styles.magentaText}>
-              ✓ {statusBanner}
+              {statusBanner}
             </Text>
           </View>
         )}
@@ -553,7 +605,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
           )}
         </TouchableOpacity>
       </View>
+        )}
+
+        {activeTab === 'settings' && (
+          <SettingsTab
+            userEmail={userEmail}
+            onOpenPinSetup={onOpenPinSetup}
+            onLogout={onLogout}
+          />
+        )}
     </BloomKeyboardScreen>
+
+    <BottomNavBar activeTab={activeTab} onSelectTab={setActiveTab} />
+  </View>
   );
 };
 
@@ -646,6 +710,99 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: '#D23669',
     marginTop: 4,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  headerLeft: {
+    flex: 1,
+    marginRight: 12,
+  },
+  quickCheckInPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: '#FCE7F3',
+    borderWidth: 1,
+    borderColor: '#F9A8D4',
+  },
+  svgRingWrapper: {
+    width: 264,
+    height: 264,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  svgRing: {
+    position: 'absolute',
+  },
+  ringCenterContent: {
+    width: 210,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  quickCheckInText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#D23669',
+  },
+  ringSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 8,
+    marginBottom: 24,
+  },
+  phaseBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 14,
+    marginBottom: 6,
+  },
+  countdownText: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  progressTrack: {
+    width: 140,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F3E8EE',
+    overflow: 'hidden',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  logPeriodButton: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    shadowColor: '#D23669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  logPeriodButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#D23669',
   },
   outerFloralRing: {
     width: 260,

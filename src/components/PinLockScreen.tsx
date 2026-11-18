@@ -7,7 +7,9 @@ import {
   View,
 } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { Ionicons } from '@expo/vector-icons';
 import { clearAuthSession } from '../services/api';
+import { BloomRoseSvg } from './BloomRoseSvg';
 
 interface PinLockScreenProps {
   userEmail?: string;
@@ -103,6 +105,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
+        <BloomRoseSvg size={64} />
         <Text style={styles.brandTitle}>Bloom</Text>
         <Text style={styles.title}>Enter Your 4-Digit PIN</Text>
         {userEmail && <Text style={styles.emailText}>{userEmail}</Text>}
@@ -142,14 +145,13 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
                   onPress={() => handleKeyPress(key)}
                   activeOpacity={0.7}
                 >
-                  <Text
-                    style={[
-                      styles.keyText,
-                      key === 'bio' && styles.bioKeyText,
-                    ]}
-                  >
-                    {key === 'bio' ? 'Face/Touch' : key}
-                  </Text>
+                  {key === 'bio' ? (
+                    <Ionicons name="finger-print" size={28} color="#D23669" />
+                  ) : key === '⌫' ? (
+                    <Ionicons name="backspace-outline" size={24} color="#2D2A32" />
+                  ) : (
+                    <Text style={styles.keyText}>{key}</Text>
+                  )}
                 </TouchableOpacity>
               );
             })}

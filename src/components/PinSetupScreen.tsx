@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { Ionicons } from '@expo/vector-icons';
 import { saveQuickUnlockSettings } from '../services/api';
 
 interface PinSetupScreenProps {
@@ -97,7 +98,10 @@ export const PinSetupScreen: React.FC<PinSetupScreenProps> = ({
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.badge}>7-Day Session Protection</Text>
+        <View style={styles.badgeRow}>
+          <Ionicons name="shield-checkmark-outline" size={14} color="#D23669" />
+          <Text style={styles.badge}>7-Day Session Protection</Text>
+        </View>
         <Text style={styles.title}>
           {step === 'create' ? 'Set a 4-Digit PIN' : 'Confirm Your PIN'}
         </Text>
@@ -159,7 +163,11 @@ export const PinSetupScreen: React.FC<PinSetupScreenProps> = ({
                   onPress={() => handleKeyPress(key)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.keyText}>{key}</Text>
+                  {key === '⌫' ? (
+                    <Ionicons name="backspace-outline" size={24} color="#2D2A32" />
+                  ) : (
+                    <Text style={styles.keyText}>{key}</Text>
+                  )}
                 </TouchableOpacity>
               )
             )}
@@ -190,16 +198,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  badge: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#D23669',
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: '#FCE7F3',
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 14,
-    overflow: 'hidden',
     marginBottom: 12,
+  },
+  badge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#D23669',
   },
   title: {
     fontSize: 24,

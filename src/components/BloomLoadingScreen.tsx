@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, Ellipse, G, Path } from 'react-native-svg';
 
 interface BloomLoadingScreenProps {
   isReady: boolean;
@@ -19,7 +20,6 @@ export const BloomLoadingScreen: React.FC<BloomLoadingScreenProps> = ({
   const fadeOutAnim = useRef(new Animated.Value(1)).current;
   const hasStartedBloom = useRef(false);
 
-  // Gentle breathing pulse while waiting for background initialization
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
@@ -41,22 +41,18 @@ export const BloomLoadingScreen: React.FC<BloomLoadingScreenProps> = ({
     return () => loop.stop();
   }, [pulseAnim]);
 
-  // Trigger the rose bloom once everything is ready in the background
   useEffect(() => {
     if (!isReady || hasStartedBloom.current) return;
     hasStartedBloom.current = true;
 
     Animated.sequence([
-      // Brief pause so the closed rosebud is visible even on fast connections
       Animated.delay(350),
-      // Unfurl the pink rose petals
       Animated.spring(bloomAnim, {
         toValue: 1,
         friction: 6,
         tension: 36,
         useNativeDriver: true,
       }),
-      // Hold the full bloom momentarily before revealing the dashboard
       Animated.delay(350),
       Animated.timing(fadeOutAnim, {
         toValue: 0,
@@ -91,19 +87,9 @@ export const BloomLoadingScreen: React.FC<BloomLoadingScreenProps> = ({
     outputRange: [0.2, 0.6, 1],
   });
 
-  const leftLeafRotate = bloomAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['-22deg', '-42deg'],
-  });
-
-  const rightLeafRotate = bloomAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['22deg', '42deg'],
-  });
-
   const outerDistance = bloomAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [-8, -34],
+    outputRange: [-8, -32],
   });
 
   const outerScale = bloomAnim.interpolate({
@@ -113,7 +99,7 @@ export const BloomLoadingScreen: React.FC<BloomLoadingScreenProps> = ({
 
   const midDistance = bloomAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [-5, -22],
+    outputRange: [-5, -20],
   });
 
   const midScale = bloomAnim.interpolate({
@@ -123,7 +109,7 @@ export const BloomLoadingScreen: React.FC<BloomLoadingScreenProps> = ({
 
   const innerDistance = bloomAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [-2, -12],
+    outputRange: [-2, -11],
   });
 
   const innerScale = bloomAnim.interpolate({
@@ -145,34 +131,41 @@ export const BloomLoadingScreen: React.FC<BloomLoadingScreenProps> = ({
           ]}
         />
 
-        {/* Stem & Leaves */}
+        {/* SVG Stem & Leaves */}
         <View style={styles.stemContainer}>
-          <View style={styles.stem} />
-          <Animated.View
-            style={[
-              styles.leaf,
-              styles.leafLeft,
-              { transform: [{ rotate: leftLeafRotate }] },
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.leaf,
-              styles.leafRight,
-              { transform: [{ rotate: rightLeafRotate }] },
-            ]}
-          />
-          <View style={styles.sepal} />
+          <Svg width={100} height={84} viewBox="0 0 100 84">
+            <G>
+              <Path
+                d="M50 6 C50 28, 49 54, 50 78"
+                stroke="#4D7C5B"
+                strokeWidth="5.5"
+                strokeLinecap="round"
+                fill="none"
+              />
+              <Path
+                d="M48 34 C30 25, 16 30, 14 42 C26 47, 39 44, 48 34 Z"
+                fill="#5C946E"
+              />
+              <Path
+                d="M52 42 C70 33, 84 38, 86 50 C74 55, 61 52, 52 42 Z"
+                fill="#4D7C5B"
+              />
+              <Path
+                d="M36 4 Q50 16 64 4 Q50 10 36 4 Z"
+                fill="#3F6A4D"
+              />
+            </G>
+          </Svg>
         </View>
 
-        {/* Animated Pink Rose Head */}
+        {/* Animated SVG Pink Rose Head */}
         <Animated.View
           style={[
             styles.roseHead,
             { transform: [{ scale: budPulseScale }] },
           ]}
         >
-          {/* Outer Petals (Light Blush Pink) */}
+          {/* Outer SVG Petals */}
           {OUTER_PETAL_ANGLES.map((angle, idx) => (
             <Animated.View
               key={`outer-${idx}`}
@@ -182,20 +175,29 @@ export const BloomLoadingScreen: React.FC<BloomLoadingScreenProps> = ({
               ]}
             >
               <Animated.View
-                style={[
-                  styles.outerPetal,
-                  {
-                    transform: [
-                      { translateY: outerDistance },
-                      { scale: outerScale },
-                    ],
-                  },
-                ]}
-              />
+                style={{
+                  transform: [
+                    { translateY: outerDistance },
+                    { scale: outerScale },
+                  ],
+                }}
+              >
+                <Svg width={46} height={54} viewBox="0 0 46 54">
+                  <Ellipse
+                    cx="23"
+                    cy="27"
+                    rx="21"
+                    ry="25"
+                    fill="#F9A8D4"
+                    stroke="#F472B6"
+                    strokeWidth="1.5"
+                  />
+                </Svg>
+              </Animated.View>
             </Animated.View>
           ))}
 
-          {/* Middle Petals (Vibrant Rose Pink) */}
+          {/* Middle SVG Petals */}
           {MID_PETAL_ANGLES.map((angle, idx) => (
             <Animated.View
               key={`mid-${idx}`}
@@ -205,20 +207,29 @@ export const BloomLoadingScreen: React.FC<BloomLoadingScreenProps> = ({
               ]}
             >
               <Animated.View
-                style={[
-                  styles.midPetal,
-                  {
-                    transform: [
-                      { translateY: midDistance },
-                      { scale: midScale },
-                    ],
-                  },
-                ]}
-              />
+                style={{
+                  transform: [
+                    { translateY: midDistance },
+                    { scale: midScale },
+                  ],
+                }}
+              >
+                <Svg width={40} height={46} viewBox="0 0 40 46">
+                  <Ellipse
+                    cx="20"
+                    cy="23"
+                    rx="18"
+                    ry="21"
+                    fill="#F472B6"
+                    stroke="#EC4899"
+                    strokeWidth="1.5"
+                  />
+                </Svg>
+              </Animated.View>
             </Animated.View>
           ))}
 
-          {/* Inner Petals (Deep Rose Magenta) */}
+          {/* Inner SVG Petals */}
           {INNER_PETAL_ANGLES.map((angle, idx) => (
             <Animated.View
               key={`inner-${idx}`}
@@ -228,26 +239,43 @@ export const BloomLoadingScreen: React.FC<BloomLoadingScreenProps> = ({
               ]}
             >
               <Animated.View
-                style={[
-                  styles.innerPetal,
-                  {
-                    transform: [
-                      { translateY: innerDistance },
-                      { scale: innerScale },
-                    ],
-                  },
-                ]}
-              />
+                style={{
+                  transform: [
+                    { translateY: innerDistance },
+                    { scale: innerScale },
+                  ],
+                }}
+              >
+                <Svg width={32} height={38} viewBox="0 0 32 38">
+                  <Ellipse
+                    cx="16"
+                    cy="19"
+                    rx="14"
+                    ry="17"
+                    fill="#D23669"
+                    stroke="#BE185D"
+                    strokeWidth="1.5"
+                  />
+                </Svg>
+              </Animated.View>
             </Animated.View>
           ))}
 
-          {/* Golden-Pink Rose Center revealed on bloom */}
+          {/* Golden-Pink SVG Rose Center */}
           <Animated.View
-            style={[
-              styles.roseCenter,
-              { transform: [{ scale: centerScale }] },
-            ]}
-          />
+            style={{ transform: [{ scale: centerScale }] }}
+          >
+            <Svg width={24} height={24} viewBox="0 0 24 24">
+              <Circle
+                cx="12"
+                cy="12"
+                r="10"
+                fill="#FDE68A"
+                stroke="#FB7185"
+                strokeWidth="3"
+              />
+            </Svg>
+          </Animated.View>
         </Animated.View>
       </View>
 
@@ -281,50 +309,14 @@ const styles = StyleSheet.create({
   },
   stemContainer: {
     position: 'absolute',
-    bottom: 18,
+    bottom: 12,
     alignItems: 'center',
     justifyContent: 'flex-start',
-  },
-  stem: {
-    width: 6,
-    height: 68,
-    borderRadius: 3,
-    backgroundColor: '#4D7C5B',
-  },
-  sepal: {
-    position: 'absolute',
-    top: -6,
-    width: 22,
-    height: 12,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    backgroundColor: '#3F6A4D',
-  },
-  leaf: {
-    position: 'absolute',
-    top: 26,
-    width: 30,
-    height: 16,
-    backgroundColor: '#5C946E',
-  },
-  leafLeft: {
-    right: 6,
-    borderTopLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    borderTopRightRadius: 4,
-    borderBottomLeftRadius: 4,
-  },
-  leafRight: {
-    left: 6,
-    borderTopRightRadius: 16,
-    borderBottomLeftRadius: 16,
-    borderTopLeftRadius: 4,
-    borderBottomRightRadius: 4,
   },
   roseHead: {
     width: 120,
     height: 120,
-    marginBottom: 36,
+    marginBottom: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -332,40 +324,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  outerPetal: {
-    width: 44,
-    height: 52,
-    borderRadius: 24,
-    backgroundColor: '#F9A8D4',
-    borderWidth: 1,
-    borderColor: '#F472B6',
-    opacity: 0.92,
-  },
-  midPetal: {
-    width: 38,
-    height: 44,
-    borderRadius: 20,
-    backgroundColor: '#F472B6',
-    borderWidth: 1,
-    borderColor: '#EC4899',
-    opacity: 0.95,
-  },
-  innerPetal: {
-    width: 30,
-    height: 36,
-    borderRadius: 16,
-    backgroundColor: '#D23669',
-    borderWidth: 1,
-    borderColor: '#BE185D',
-  },
-  roseCenter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#FDE68A',
-    borderWidth: 3,
-    borderColor: '#FB7185',
   },
   brandTitle: {
     marginTop: 12,

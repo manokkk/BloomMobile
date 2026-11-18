@@ -270,6 +270,15 @@ export async function fetchUserCycle(userId: string): Promise<CycleDataResponse>
   return response.data;
 }
 
+export async function logNewCycleStart(payload: {
+  user_id: string;
+  start_date: string;
+  end_date?: string;
+}) {
+  const response = await apiClient.post('/api/cycle', payload);
+  return response.data;
+}
+
 export async function upsertDailySymptomLog(payload: UpsertDailyLogPayload) {
   const response = await apiClient.post('/api/logs', payload);
   return response.data;

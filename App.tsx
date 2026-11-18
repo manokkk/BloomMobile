@@ -135,7 +135,11 @@ export default function App() {
           />
         )}
         {currentScreen === 'dashboard' && activeUser && (
-          <Dashboard initialUser={activeUser} onLogout={handleLogout} />
+          <Dashboard
+            initialUser={activeUser}
+            onLogout={handleLogout}
+            onOpenPinSetup={() => setCurrentScreen('pin-setup')}
+          />
         )}
       </SafeAreaView>
     </SafeAreaProvider>
