@@ -1,6 +1,5 @@
-import React, { useRef, useState } from 'react';
+import React, { ComponentRef, useRef, useState } from 'react';
 import {
-  findNodeHandle,
   StyleProp,
   StyleSheet,
   TextInput,
@@ -21,11 +20,12 @@ export const BloomTextInput: React.FC<BloomTextInputProps> = ({
   style,
   onFocus,
   onBlur,
+  onContentSizeChange,
   placeholderTextColor = '#9E95A5',
   ...rest
 }) => {
   const [focused, setFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
   const keyboardScroll = useKeyboardScroll();
 
   return (
@@ -41,12 +41,18 @@ export const BloomTextInput: React.FC<BloomTextInputProps> = ({
       ]}
       onFocus={(e) => {
         setFocused(true);
-        keyboardScroll?.scrollInputIntoView(findNodeHandle(inputRef.current));
+        keyboardScroll?.scrollInputIntoView(e?.target ?? inputRef.current);
         onFocus?.(e);
       }}
       onBlur={(e) => {
         setFocused(false);
         onBlur?.(e);
+      }}
+      onContentSizeChange={(e) => {
+        if (focused) {
+          keyboardScroll?.ensureFocusedVisible();
+        }
+        onContentSizeChange?.(e);
       }}
     />
   );
