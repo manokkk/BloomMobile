@@ -203,6 +203,39 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
+export interface UserCycleProfile {
+  id?: string;
+  birth_year?: number | null;
+  tracking_goal?: 'track_cycle' | 'conceive' | 'perimenopause' | 'general_health' | string | null;
+  typical_cycle_length?: number | null;
+  typical_period_length?: number | null;
+  typical_luteal_length?: number | null;
+  cycles_are_regular?: boolean | null;
+  contraception_type?: string | null;
+  health_conditions?: string[] | null;
+  onboarding_completed?: boolean | null;
+}
+
+export interface CycleInsight {
+  type: 'info' | 'pattern' | 'attention';
+  code: string;
+  message: string;
+}
+
+export interface CycleAssessment {
+  cycle_length_used: number;
+  period_length_used: number;
+  luteal_length_used: number;
+  ovulation_confirmed: boolean;
+  ovulation_source: 'lh_test' | 'bbt' | 'cervical_mucus' | 'estimated';
+  regularity_status: 'regular' | 'slightly_irregular' | 'irregular' | 'insufficient_data';
+  cycle_variability_days: number | null;
+  confidence_level: 'high' | 'medium' | 'low';
+  prediction_window_days: number;
+  completed_cycles_count: number;
+  insights: CycleInsight[];
+}
+
 export interface CycleDataResponse {
   cycle: {
     id: string;
@@ -210,10 +243,17 @@ export interface CycleDataResponse {
     start_date: string;
     end_date: string | null;
     expected_next_start: string;
+    cycle_length?: number | null;
+    period_length?: number | null;
+    ovulation_date?: string | null;
+    luteal_length?: number | null;
+    is_outlier?: boolean;
   };
   prediction: {
     start_date: string;
     expected_next_start: string;
+    expected_next_start_min?: string;
+    expected_next_start_max?: string;
     ovulation_date: string;
     fertile_window_start: string;
     fertile_window_end: string;
@@ -222,10 +262,21 @@ export interface CycleDataResponse {
     current_phase: 'Menstrual' | 'Follicular' | 'Ovulation' | 'Luteal';
     phase_description: string;
   };
+  assessment?: CycleAssessment;
+  profile?: UserCycleProfile;
   logs: Array<{
     id: string;
     log_date: string;
     flow_intensity: string | null;
+    is_spotting?: boolean;
+    pain_level?: number | null;
+    cervical_mucus?: string | null;
+    lh_test?: string | null;
+    bbt_celsius?: number | null;
+    sleep_hours?: number | null;
+    stress_level?: number | null;
+    lifestyle_flags?: string[];
+    sexual_activity?: string | null;
     symptoms: string[];
     mood: string[];
     notes: string | null;
@@ -237,6 +288,15 @@ export interface UpsertDailyLogPayload {
   cycle_id?: string;
   log_date: string;
   flow_intensity: string | null;
+  is_spotting?: boolean;
+  pain_level?: number | null;
+  cervical_mucus?: string | null;
+  lh_test?: string | null;
+  bbt_celsius?: number | null;
+  sleep_hours?: number | null;
+  stress_level?: number | null;
+  lifestyle_flags?: string[];
+  sexual_activity?: string | null;
   symptoms: string[];
   mood: string[];
   notes?: string;
@@ -270,10 +330,34 @@ export async function fetchUserCycle(userId: string): Promise<CycleDataResponse>
   return response.data;
 }
 
+export async function fetchUserProfile(userId: string): Promise<UserCycleProfile> {
+  const response = await apiClient.get<{ profile: UserCycleProfile }>(
+    `/api/profile/${userId}`
+  );
+  return response.data.profile;
+}
+
+export async function updateUserProfile(
+  userId: string,
+  profile: UserCycleProfile
+): Promise<UserCycleProfile> {
+  const response = await apiClient.put<{ profile: UserCycleProfile }>(
+    `/api/profile/${userId}`,
+    profile
+  );
+  return response.data.profile;
+}
+
+export async function fetchCycleHistory(userId: string) {
+  const response = await apiClient.get(`/api/cycles/${userId}/history`);
+  return response.data;
+}
+
 export async function logNewCycleStart(payload: {
   user_id: string;
   start_date: string;
   end_date?: string;
+  is_outlier?: boolean;
 }) {
   const response = await apiClient.post('/api/cycle', payload);
   return response.data;

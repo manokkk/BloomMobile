@@ -22,6 +22,34 @@ import {
 } from '../services/api';
 
 const FLOW_OPTIONS = ['None', 'Spotting', 'Light', 'Medium', 'Heavy'];
+const PAIN_PRESETS = [
+  { label: 'None', value: 0 },
+  { label: 'Mild', value: 2 },
+  { label: 'Moderate', value: 5 },
+  { label: 'Severe', value: 8 },
+];
+const LH_OPTIONS = [
+  { label: 'Not Tested', value: '' },
+  { label: 'Negative', value: 'negative' },
+  { label: 'High', value: 'high' },
+  { label: 'Peak', value: 'peak' },
+];
+const MUCUS_OPTIONS = [
+  { label: 'Dry', value: 'dry' },
+  { label: 'Sticky', value: 'sticky' },
+  { label: 'Creamy', value: 'creamy' },
+  { label: 'Watery', value: 'watery' },
+  { label: 'Egg-white', value: 'egg_white' },
+];
+const LIFESTYLE_FLAGS = [
+  { label: 'Illness', value: 'illness' },
+  { label: 'Fever', value: 'fever' },
+  { label: 'Poor Sleep', value: 'poor_sleep' },
+  { label: 'Travel', value: 'travel' },
+  { label: 'Alcohol', value: 'alcohol' },
+  { label: 'Intense Exercise', value: 'intense_exercise' },
+];
+const STRESS_LEVELS = [1, 2, 3, 4, 5];
 const SYMPTOM_OPTIONS = [
   'Cramps',
   'Bloating',
@@ -110,6 +138,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Daily Symptom Form State
   const [flowIntensity, setFlowIntensity] = useState<string>('None');
+  const [isSpotting, setIsSpotting] = useState<boolean>(false);
+  const [painLevel, setPainLevel] = useState<number>(0);
+  const [lhTest, setLhTest] = useState<string>('');
+  const [cervicalMucus, setCervicalMucus] = useState<string>('');
+  const [bbtInput, setBbtInput] = useState<string>('');
+  const [sleepInput, setSleepInput] = useState<string>('');
+  const [stressLevel, setStressLevel] = useState<number | null>(null);
+  const [lifestyleFlags, setLifestyleFlags] = useState<string[]>([]);
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [notes, setNotes] = useState<string>('');
@@ -126,11 +162,37 @@ export const Dashboard: React.FC<DashboardProps> = ({
       const existing = logs.find((item) => item.log_date === dateIso);
       if (existing) {
         setFlowIntensity(existing.flow_intensity || 'None');
+        setIsSpotting(Boolean(existing.is_spotting));
+        setPainLevel(existing.pain_level ?? 0);
+        setLhTest(existing.lh_test || '');
+        setCervicalMucus(existing.cervical_mucus || '');
+        setBbtInput(
+          existing.bbt_celsius !== null && existing.bbt_celsius !== undefined
+            ? String(existing.bbt_celsius)
+            : ''
+        );
+        setSleepInput(
+          existing.sleep_hours !== null && existing.sleep_hours !== undefined
+            ? String(existing.sleep_hours)
+            : ''
+        );
+        setStressLevel(existing.stress_level ?? null);
+        setLifestyleFlags(
+          Array.isArray(existing.lifestyle_flags) ? existing.lifestyle_flags : []
+        );
         setSelectedSymptoms(Array.isArray(existing.symptoms) ? existing.symptoms : []);
         setSelectedMoods(Array.isArray(existing.mood) ? existing.mood : []);
         setNotes(existing.notes || '');
       } else {
         setFlowIntensity('None');
+        setIsSpotting(false);
+        setPainLevel(0);
+        setLhTest('');
+        setCervicalMucus('');
+        setBbtInput('');
+        setSleepInput('');
+        setStressLevel(null);
+        setLifestyleFlags([]);
         setSelectedSymptoms([]);
         setSelectedMoods([]);
         setNotes('');
@@ -240,11 +302,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setErrorBanner(null);
 
     try {
+      const parsedBbt = bbtInput.trim() ? Number(bbtInput.trim()) : null;
+      const parsedSleep = sleepInput.trim() ? Number(sleepInput.trim()) : null;
+
       await upsertDailySymptomLog({
         user_id: userId,
         cycle_id: cycleData?.cycle.id,
         log_date: selectedDate,
         flow_intensity: flowIntensity,
+        is_spotting: isSpotting || flowIntensity === 'Spotting',
+        pain_level: painLevel,
+        cervical_mucus: cervicalMucus || null,
+        lh_test: lhTest || null,
+        bbt_celsius:
+          parsedBbt !== null && Number.isFinite(parsedBbt) ? parsedBbt : null,
+        sleep_hours:
+          parsedSleep !== null && Number.isFinite(parsedSleep) ? parsedSleep : null,
+        stress_level: stressLevel,
+        lifestyle_flags: lifestyleFlags,
         symptoms: selectedSymptoms,
         mood: selectedMoods,
         notes,
@@ -295,12 +370,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
   }
 
   const prediction = cycleData?.prediction;
+  const assessment = cycleData?.assessment;
   const calendarDays = generateCalendarStrip(selectedDate);
   const phaseTheme =
     PHASE_THEMES[prediction?.current_phase ?? 'Follicular'] ??
     PHASE_THEMES.Follicular;
   const cycleDay = prediction?.current_cycle_day ?? 1;
-  const cycleProgressPct = Math.min(100, Math.max(4, Math.round((cycleDay / 28) * 100)));
+  const activeCycleLen = assessment?.cycle_length_used ?? 28;
+  const cycleProgressPct = Math.min(
+    100,
+    Math.max(4, Math.round((cycleDay / activeCycleLen) * 100))
+  );
+  const regularityLabelMap: Record<string, string> = {
+    regular: 'Regular',
+    slightly_irregular: 'Slightly Variable',
+    irregular: 'Irregular',
+    insufficient_data: 'Learning',
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FFFAF0' }}>
@@ -452,11 +538,87 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <Text className="text-base font-bold text-magentaBloom mt-1" style={styles.magentaText}>
                   {formatShortDate(cycleData?.cycle.expected_next_start)}
                 </Text>
+                {prediction?.expected_next_start_min &&
+                  prediction?.expected_next_start_max && (
+                    <Text style={styles.windowHintText}>
+                      Window: {formatShortDate(prediction.expected_next_start_min)} –{' '}
+                      {formatShortDate(prediction.expected_next_start_max)}
+                    </Text>
+                  )}
                 <Text className="text-xs text-deepCharcoal mt-1" style={styles.subtleText}>
-                  Est. Ovulation: {formatShortDate(prediction?.ovulation_date)}
+                  {assessment?.ovulation_confirmed ? 'Confirmed Ovulation: ' : 'Est. Ovulation: '}
+                  {formatShortDate(prediction?.ovulation_date)}
                 </Text>
               </View>
             </View>
+
+            {/* Cycle Assessment & Insights Card */}
+            {assessment && (
+              <View style={[styles.cardContainer, styles.assessmentCard]}>
+                <View style={styles.assessmentHeader}>
+                  <View style={styles.inlineIconRow}>
+                    <Ionicons name="analytics-outline" size={16} color="#D23669" />
+                    <Text style={styles.assessmentTitle}>Cycle Assessment</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.confidenceBadge,
+                      assessment.confidence_level === 'high' && styles.confidenceHigh,
+                      assessment.confidence_level === 'low' && styles.confidenceLow,
+                    ]}
+                  >
+                    <Text style={styles.confidenceBadgeText}>
+                      {assessment.confidence_level.toUpperCase()} CONFIDENCE
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.statsGrid}>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statLabel}>Regularity</Text>
+                    <Text style={styles.statValue}>
+                      {regularityLabelMap[assessment.regularity_status] || 'Learning'}
+                    </Text>
+                  </View>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statLabel}>Cycle Len</Text>
+                    <Text style={styles.statValue}>{assessment.cycle_length_used}d</Text>
+                  </View>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statLabel}>Period Len</Text>
+                    <Text style={styles.statValue}>{assessment.period_length_used}d</Text>
+                  </View>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statLabel}>Ovulation</Text>
+                    <Text style={styles.statValue}>
+                      {assessment.ovulation_confirmed ? 'Confirmed' : 'Estimated'}
+                    </Text>
+                  </View>
+                </View>
+
+                {assessment.insights.length > 0 && (
+                  <View style={styles.insightsList}>
+                    {assessment.insights.map((insight) => (
+                      <View key={insight.code} style={styles.insightRow}>
+                        <Ionicons
+                          name={
+                            insight.type === 'attention'
+                              ? 'alert-circle-outline'
+                              : insight.type === 'pattern'
+                              ? 'sparkles-outline'
+                              : 'information-circle-outline'
+                          }
+                          size={16}
+                          color="#D23669"
+                          style={{ marginTop: 1 }}
+                        />
+                        <Text style={styles.insightText}>{insight.message}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
           </>
         )}
 
@@ -494,7 +656,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
             return (
               <TouchableOpacity
                 key={flow}
-                onPress={() => setFlowIntensity(flow)}
+                onPress={() => {
+                  setFlowIntensity(flow);
+                  setIsSpotting(flow === 'Spotting');
+                }}
                 className={`px-4 py-2 rounded-3xl mr-2 mb-2 ${active ? 'bg-softRose border border-magentaBloom' : 'bg-floralWhite'
                   }`}
                 style={[styles.chip, active && styles.chipActive]}
@@ -504,6 +669,141 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   style={[styles.chipText, active && styles.magentaText]}
                 >
                   {flow}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Pain / Cramp Severity */}
+        <Text className="text-sm font-semibold text-deepCharcoal mb-2" style={styles.charcoalText}>
+          Cramp / Pelvic Pain Severity
+        </Text>
+        <View style={styles.chipWrap}>
+          {PAIN_PRESETS.map((preset) => {
+            const active =
+              preset.value === 0
+                ? painLevel === 0
+                : Math.abs(painLevel - preset.value) <= 1;
+            return (
+              <TouchableOpacity
+                key={preset.label}
+                onPress={() => setPainLevel(preset.value)}
+                style={[styles.chip, active && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, active && styles.magentaText]}>
+                  {preset.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Ovulation & Fertility Signals */}
+        <Text className="text-sm font-semibold text-deepCharcoal mb-2" style={styles.charcoalText}>
+          LH Ovulation Test
+        </Text>
+        <View style={styles.chipWrap}>
+          {LH_OPTIONS.map((opt) => {
+            const active = lhTest === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.label}
+                onPress={() => setLhTest(opt.value)}
+                style={[styles.chip, active && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, active && styles.magentaText]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text className="text-sm font-semibold text-deepCharcoal mb-2" style={styles.charcoalText}>
+          Cervical Mucus / Discharge
+        </Text>
+        <View style={styles.chipWrap}>
+          {MUCUS_OPTIONS.map((opt) => {
+            const active = cervicalMucus === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                onPress={() => setCervicalMucus(active ? '' : opt.value)}
+                style={[styles.chip, active && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, active && styles.magentaText]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={styles.biometricRow}>
+          <View style={styles.biometricField}>
+            <Text style={[styles.charcoalText, styles.biometricLabel]}>
+              Basal Temp (°C)
+            </Text>
+            <BloomTextInput
+              value={bbtInput}
+              onChangeText={setBbtInput}
+              placeholder="e.g. 36.45"
+              placeholderTextColor="#888888"
+              keyboardType="decimal-pad"
+            />
+          </View>
+          <View style={styles.biometricField}>
+            <Text style={[styles.charcoalText, styles.biometricLabel]}>
+              Sleep (hours)
+            </Text>
+            <BloomTextInput
+              value={sleepInput}
+              onChangeText={setSleepInput}
+              placeholder="e.g. 7.5"
+              placeholderTextColor="#888888"
+              keyboardType="decimal-pad"
+            />
+          </View>
+        </View>
+
+        {/* Stress & Lifestyle Context */}
+        <Text className="text-sm font-semibold text-deepCharcoal mb-2" style={styles.charcoalText}>
+          Stress Level (1 Low – 5 High)
+        </Text>
+        <View style={styles.chipWrap}>
+          {STRESS_LEVELS.map((lvl) => {
+            const active = stressLevel === lvl;
+            return (
+              <TouchableOpacity
+                key={lvl}
+                onPress={() => setStressLevel(active ? null : lvl)}
+                style={[styles.chip, active && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, active && styles.magentaText]}>
+                  {lvl}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text className="text-sm font-semibold text-deepCharcoal mb-2" style={styles.charcoalText}>
+          Lifestyle Context (Filters BBT/Cycle Noise)
+        </Text>
+        <View style={styles.chipWrap}>
+          {LIFESTYLE_FLAGS.map((flag) => {
+            const active = lifestyleFlags.includes(flag.value);
+            return (
+              <TouchableOpacity
+                key={flag.value}
+                onPress={() =>
+                  toggleItem(flag.value, lifestyleFlags, setLifestyleFlags)
+                }
+                style={[styles.chip, active && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, active && styles.magentaText]}>
+                  {flag.label}
                 </Text>
               </TouchableOpacity>
             );
@@ -609,7 +909,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         {activeTab === 'settings' && (
           <SettingsTab
+            userId={userId}
             userEmail={userEmail}
+            initialProfile={cycleData?.profile}
+            onProfileUpdated={bootstrapDashboard}
             onOpenPinSetup={onOpenPinSetup}
             onLogout={onLogout}
           />
@@ -916,6 +1219,102 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#5C5465',
+  },
+  windowHintText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#D23669',
+    marginTop: 2,
+  },
+  assessmentCard: {
+    marginBottom: 20,
+  },
+  assessmentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  assessmentTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#2D2A32',
+  },
+  confidenceBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+  },
+  confidenceHigh: {
+    backgroundColor: '#DCFCE7',
+  },
+  confidenceLow: {
+    backgroundColor: '#FFE4E6',
+  },
+  confidenceBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#2D2A32',
+    letterSpacing: 0.4,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#FFFAF0',
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FCE7F3',
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#5C5465',
+    marginBottom: 3,
+  },
+  statValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#D23669',
+    textAlign: 'center',
+  },
+  insightsList: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#FFF0F5',
+    gap: 8,
+  },
+  insightRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  insightText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#333333',
+  },
+  biometricRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 14,
+  },
+  biometricField: {
+    flex: 1,
+  },
+  biometricLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 6,
   },
 });
 
